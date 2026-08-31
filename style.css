@@ -1,0 +1,59 @@
+.aries-settings label {
+    display: block;
+    margin: 10px 0 4px;
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+.aries-settings .aries-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.aries-settings .aries-model-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 4px 0 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.aries-settings .aries-model-check {
+    margin: 2px 0;
+    font-size: 0.9em;
+    padding: 4px 2px; 
+}
+
+.aries-settings .aries-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.aries-settings .aries-buttons .menu_button {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    justify-content: center;
+}
+
+.aries-settings .aries-hint {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.aries-settings .aries-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: 0.85em;
+    opacity: 0.9;
+}
+

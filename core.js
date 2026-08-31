@@ -1,0 +1,90 @@
+
+
+
+
+export function fnv1a(str) {
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+export function matchesWarmRules(model, rules) {
+    if (!model || !Array.isArray(rules) || rules.length === 0) return false;
+    const m = String(model).toLowerCase();
+    return rules.some((r) => r && m.includes(String(r).toLowerCase()));
+}
+
+export function messagesKey(messages) {
+    return fnv1a(JSON.stringify(messages || [])) + ':' + (messages?.length ?? 0);
+}
+
+
+
+export class WarmupGate {
+    constructor({ ttlMs = 180000, minChars = 2000, cap = 500 } = {}) {
+        this.ttlMs = ttlMs;
+        this.minChars = minChars;
+        this.cap = cap;
+        this.hot = new Map();
+        this.inflight = new Set();
+    }
+
+    _hotHas(key) {
+        const at = this.hot.get(key);
+        if (at === undefined) return false;
+        if (Date.now() - at > this.ttlMs) { this.hot.delete(key); return false; }
+        return true;
+    }
+
+
+
+    decide(model, messages, { enabled, warmupModels, exactModels }) {
+        if (!enabled) return { warm: false, reason: 'disabled', key: null };
+
+        if (Array.isArray(exactModels) && exactModels.length > 0) {
+            if (!exactModels.includes(model)) return { warm: false, reason: 'model', key: null };
+        } else if (!matchesWarmRules(model, warmupModels)) {
+            return { warm: false, reason: 'model', key: null };
+        }
+        if (!Array.isArray(messages) || messages.length === 0) return { warm: false, reason: 'empty', key: null };
+        const serialized = JSON.stringify(messages);
+        if (serialized.length < this.minChars) return { warm: false, reason: 'short', key: null };
+
+        const n = messages.length;
+        const candidates = [messagesKey(messages)];
+        if (n > 1) candidates.push(messagesKey(messages.slice(0, -1)));
+        if (n > 2) candidates.push(messagesKey(messages.slice(0, -2)));
+        if (candidates.some((k) => this._hotHas(k))) return { warm: false, reason: 'hot', key: null };
+
+        const key = candidates[0];
+        if (this.inflight.has(key)) return { warm: false, reason: 'dedup', key: null };
+        return { warm: true, reason: 'cold', key };
+    }
+
+
+    begin(key) {
+        if (this.inflight.has(key)) return false;
+        this.inflight.add(key);
+        return true;
+    }
+
+    end(key) {
+        this.inflight.delete(key);
+    }
+
+
+    markWarmed(messages) {
+        if (!Array.isArray(messages)) return;
+        const n = messages.length;
+        const keys = [messagesKey(messages)];
+        if (n > 1) keys.push(messagesKey(messages.slice(0, -1)));
+        if (n > 2) keys.push(messagesKey(messages.slice(0, -2)));
+        for (const k of keys) {
+            if (this.hot.size >= this.cap) this.hot.delete(this.hot.keys().next().value);
+            this.hot.set(k, Date.now());
+        }
+    }
+}
