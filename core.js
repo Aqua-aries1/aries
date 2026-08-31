@@ -53,13 +53,8 @@ export class WarmupGate {
         const serialized = JSON.stringify(messages);
         if (serialized.length < this.minChars) return { warm: false, reason: 'short', key: null };
 
-        const n = messages.length;
-        const candidates = [messagesKey(messages)];
-        if (n > 1) candidates.push(messagesKey(messages.slice(0, -1)));
-        if (n > 2) candidates.push(messagesKey(messages.slice(0, -2)));
-        if (candidates.some((k) => this._hotHas(k))) return { warm: false, reason: 'hot', key: null };
-
-        const key = candidates[0];
+        const key = messagesKey(messages);
+        if (this._hotHas(key)) return { warm: false, reason: 'hot', key: null };
         if (this.inflight.has(key)) return { warm: false, reason: 'dedup', key: null };
         return { warm: true, reason: 'cold', key };
     }
@@ -78,13 +73,7 @@ export class WarmupGate {
 
     markWarmed(messages) {
         if (!Array.isArray(messages)) return;
-        const n = messages.length;
-        const keys = [messagesKey(messages)];
-        if (n > 1) keys.push(messagesKey(messages.slice(0, -1)));
-        if (n > 2) keys.push(messagesKey(messages.slice(0, -2)));
-        for (const k of keys) {
-            if (this.hot.size >= this.cap) this.hot.delete(this.hot.keys().next().value);
-            this.hot.set(k, Date.now());
-        }
+        if (this.hot.size >= this.cap) this.hot.delete(this.hot.keys().next().value);
+        this.hot.set(messagesKey(messages), Date.now());
     }
 }
