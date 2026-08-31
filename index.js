@@ -93,7 +93,12 @@ async function onSettingsReady(generateData) {
     const settings = getSettings();
     try {
 
-        if (!settings.targetUrl || normalizeUrl(generateData?.custom_url) !== normalizeUrl(settings.targetUrl)) {
+        if (!settings.targetUrl) {
+            stats.skippedUrl++;
+            console.info('[aries] 未填端点 URL, 本请求直连不预热');
+            return;
+        }
+        if (normalizeUrl(generateData?.custom_url) !== normalizeUrl(settings.targetUrl)) {
             stats.skippedUrl++;
             return;
         }
@@ -116,6 +121,7 @@ async function onSettingsReady(generateData) {
         }
         if (!g.begin(decision.key)) return;
         stats.warmFired++;
+        console.info('[aries] 预热触发:', model);
         const ok = await performWarmup(generateData, settings);
         g.end(decision.key);
         if (ok) {
@@ -164,6 +170,7 @@ const TEMPLATE = `
             </label>
             <label for="aries_target_url">目标端点 URL（仅当当前接口端点为该地址时才生效）</label>
             <input id="aries_target_url" class="text_pole" type="text" placeholder="填入接口地址后生效" autocomplete="off" />
+            <div id="aries_url_hint" class="aries-hint" style="display:none">未填端点 URL —— 扩展不生效，请求照常直连</div>
             <label for="aries_models">匹配规则（模型名包含即生效，逗号分隔；自选框留空时才生效）</label>
             <input id="aries_models" class="text_pole" type="text" placeholder="deepseek" autocomplete="off" />
             <label>自选模型（勾选后仅对勾选的模型生效，优先于上方规则）</label>
@@ -188,6 +195,8 @@ function refreshStats() {
     el('aries_s_url').textContent = stats.skippedUrl;
     el('aries_s_breaker').textContent = stats.skippedBreaker;
     el('aries_s_short').textContent = stats.skippedShort;
+
+    el('aries_url_hint').style.display = getSettings().targetUrl ? 'none' : '';
 
     const optionsKey = Array.from(document.querySelectorAll('#model_custom_select option, .model_custom_select option'))
         .map((o) => o.value).filter(Boolean).join('|');
@@ -249,14 +258,18 @@ function bindSettings() {
         settings.enabled = e.target.checked;
         saveSettingsDebounced();
     });
-    document.getElementById('aries_target_url').addEventListener('change', (e) => {
-        settings.targetUrl = String(e.target.value).trim();
+
+    const urlInput = document.getElementById('aries_target_url');
+    const modelsInput = document.getElementById('aries_models');
+    const saveUrl = () => { settings.targetUrl = String(urlInput.value).trim(); saveSettingsDebounced(); };
+    const saveModels = () => {
+        settings.warmupModels = String(modelsInput.value).split(',').map((x) => x.trim()).filter(Boolean);
         saveSettingsDebounced();
-    });
-    document.getElementById('aries_models').addEventListener('change', (e) => {
-        settings.warmupModels = String(e.target.value).split(',').map((x) => x.trim()).filter(Boolean);
-        saveSettingsDebounced();
-    });
+    };
+    urlInput.addEventListener('input', saveUrl);
+    urlInput.addEventListener('change', saveUrl);
+    modelsInput.addEventListener('input', saveModels);
+    modelsInput.addEventListener('change', saveModels);
     document.getElementById('aries_refresh_models').addEventListener('click', renderModelChecks);
     renderModelChecks();
     setInterval(refreshStats, 5000);
