@@ -24,7 +24,7 @@ export function messagesKey(messages) {
 
 
 export class WarmupGate {
-    constructor({ ttlMs = 180000, minChars = 2000 } = {}) {
+    constructor({ ttlMs = 600000, minChars = 2000 } = {}) {
         this.ttlMs = ttlMs;
         this.minChars = minChars;
         this.lastKey = null;

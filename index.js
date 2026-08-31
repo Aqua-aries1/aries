@@ -22,7 +22,7 @@ function defaultSettings() {
         warmupModels: ['deepseek'],
         warmModelsExact: [],
         timeoutMs: 45000,
-        ttlMs: 180000,
+        ttlMs: 600000,
         minChars: 2000,
     };
 }
@@ -35,6 +35,8 @@ function normalizeUrl(url) {
 
 function getSettings() {
     const s = extension_settings[SETTINGS_KEY] || (extension_settings[SETTINGS_KEY] = {});
+
+    if (s.ttlMs === 180000) s.ttlMs = 600000;
     const d = defaultSettings();
     for (const k of Object.keys(d)) {
         if (s[k] === undefined) {
