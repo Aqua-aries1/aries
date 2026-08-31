@@ -31,9 +31,17 @@ function normalizeUrl(url) {
     return String(url || '').trim().replace(/\/+$/, '').toLowerCase();
 }
 
+
+
 function getSettings() {
-    extension_settings[SETTINGS_KEY] = { ...defaultSettings(), ...(extension_settings[SETTINGS_KEY] || {}) };
-    return extension_settings[SETTINGS_KEY];
+    const s = extension_settings[SETTINGS_KEY] || (extension_settings[SETTINGS_KEY] = {});
+    const d = defaultSettings();
+    for (const k of Object.keys(d)) {
+        if (s[k] === undefined) {
+            s[k] = Array.isArray(d[k]) ? [...d[k]] : (d[k] && typeof d[k] === 'object' ? { ...d[k] } : d[k]);
+        }
+    }
+    return s;
 }
 
 let gate = new WarmupGate({ ttlMs: getSettings().ttlMs, minChars: getSettings().minChars });
@@ -212,7 +220,7 @@ function refreshStats() {
     el('aries_s_breaker').textContent = stats.skippedBreaker;
     el('aries_s_short').textContent = stats.skippedShort;
 
-    el('aries_url_hint').style.display = getSettings().targetUrl ? 'none' : '';
+    updateUrlHint();
 
     const logView = el('aries_log_view');
     if (logView && logView.style.display !== 'none') renderLogs();
@@ -268,6 +276,11 @@ function renderModelChecks() {
     }
 }
 
+function updateUrlHint() {
+    const el = document.getElementById('aries_url_hint');
+    if (el) el.style.display = getSettings().targetUrl ? 'none' : '';
+}
+
 function renderLogs() {
     const el = document.getElementById('aries_log_view');
     if (!el) return;
@@ -294,7 +307,11 @@ function bindSettings() {
 
     const urlInput = document.getElementById('aries_target_url');
     const modelsInput = document.getElementById('aries_models');
-    const saveUrl = () => { settings.targetUrl = String(urlInput.value).trim(); saveSettingsDebounced(); };
+    const saveUrl = () => {
+        settings.targetUrl = String(urlInput.value).trim();
+        saveSettingsDebounced();
+        updateUrlHint();
+    };
     const saveModels = () => {
         settings.warmupModels = String(modelsInput.value).split(',').map((x) => x.trim()).filter(Boolean);
         saveSettingsDebounced();
