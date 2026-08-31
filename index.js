@@ -41,6 +41,16 @@ const stats = { warmFired: 0, warmOk: 0, warmFail: 0, skippedHot: 0, skippedMode
 const breaker = { fails: 0, pausedUntil: 0 };
 
 
+const LOG_CAP = 100;
+const logs = [];
+function log(msg) {
+    const t = new Date().toTimeString().slice(0, 8);
+    logs.push(`[${t}] ${msg}`);
+    if (logs.length > LOG_CAP) logs.shift();
+    console.info(`[aries] ${msg}`);
+}
+
+
 Object.assign(stats, getSettings().stats || {});
 
 
@@ -95,16 +105,18 @@ async function onSettingsReady(generateData) {
 
         if (!settings.targetUrl) {
             stats.skippedUrl++;
-            console.info('[aries] 未填端点 URL, 本请求直连不预热');
+            log('直连: 未填端点 URL');
             return;
         }
         if (normalizeUrl(generateData?.custom_url) !== normalizeUrl(settings.targetUrl)) {
             stats.skippedUrl++;
+            log('直连: 端点不匹配');
             return;
         }
 
         if (Date.now() < breaker.pausedUntil) {
             stats.skippedBreaker++;
+            log('直连: 熔断中');
             return;
         }
         const model = String(generateData?.model || '');
@@ -114,26 +126,28 @@ async function onSettingsReady(generateData) {
 
         g.markWarmed(messages);
         if (!decision.warm) {
-            if (decision.reason === 'hot') stats.skippedHot++;
-            else if (decision.reason === 'model') stats.skippedModel++;
-            else if (decision.reason === 'short') stats.skippedShort++;
+            if (decision.reason === 'hot') { stats.skippedHot++; log('跳过: 热前缀命中'); }
+            else if (decision.reason === 'model') { stats.skippedModel++; log(`跳过: 模型不匹配 (${model})`); }
+            else if (decision.reason === 'short') { stats.skippedShort++; log('跳过: 上下文过短'); }
             return;
         }
         if (!g.begin(decision.key)) return;
         stats.warmFired++;
-        console.info('[aries] 预热触发:', model);
+        log(`预热: ${model}`);
         const ok = await performWarmup(generateData, settings);
         g.end(decision.key);
         if (ok) {
             stats.warmOk++;
             breaker.fails = 0;
+            log('预热成功');
         } else {
             stats.warmFail++;
             breaker.fails++;
+            log('预热失败');
             if (breaker.fails >= BREAKER_THRESHOLD) {
                 breaker.pausedUntil = Date.now() + BREAKER_COOLDOWN_MS;
                 breaker.fails = 0;
-                console.warn(`[aries] 预热连续失败 ${BREAKER_THRESHOLD} 次, 熔断 ${BREAKER_COOLDOWN_MS / 60000} 分钟`);
+                log(`熔断: 连续失败 ${BREAKER_THRESHOLD} 次, 暂停 ${BREAKER_COOLDOWN_MS / 60000} 分钟`);
             }
         }
     } catch (e) {
@@ -177,7 +191,9 @@ const TEMPLATE = `
             <div id="aries_model_checks" class="aries-model-checks"></div>
             <div class="aries-buttons">
                 <button id="aries_refresh_models" class="menu_button">刷新模型列表</button>
+                <button id="aries_view_logs" class="menu_button">查看日志</button>
             </div>
+            <div id="aries_log_view" class="aries-log-view" style="display:none"></div>
         </div>
     </div>
 </div>
@@ -197,6 +213,9 @@ function refreshStats() {
     el('aries_s_short').textContent = stats.skippedShort;
 
     el('aries_url_hint').style.display = getSettings().targetUrl ? 'none' : '';
+
+    const logView = el('aries_log_view');
+    if (logView && logView.style.display !== 'none') renderLogs();
 
     const optionsKey = Array.from(document.querySelectorAll('#model_custom_select option, .model_custom_select option'))
         .map((o) => o.value).filter(Boolean).join('|');
@@ -249,6 +268,20 @@ function renderModelChecks() {
     }
 }
 
+function renderLogs() {
+    const el = document.getElementById('aries_log_view');
+    if (!el) return;
+    el.textContent = logs.length ? logs.join('\n') : '暂无日志（日志只保留最近 100 条，刷新页面即清空）';
+}
+
+function toggleLogView() {
+    const el = document.getElementById('aries_log_view');
+    if (!el) return;
+    const show = el.style.display === 'none';
+    el.style.display = show ? '' : 'none';
+    if (show) renderLogs();
+}
+
 function bindSettings() {
     const settings = getSettings();
     document.getElementById('aries_enabled').checked = !!settings.enabled;
@@ -271,6 +304,7 @@ function bindSettings() {
     modelsInput.addEventListener('input', saveModels);
     modelsInput.addEventListener('change', saveModels);
     document.getElementById('aries_refresh_models').addEventListener('click', renderModelChecks);
+    document.getElementById('aries_view_logs').addEventListener('click', toggleLogView);
     renderModelChecks();
     setInterval(refreshStats, 5000);
     refreshStats();

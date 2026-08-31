@@ -48,6 +48,20 @@
     opacity: 0.7;
 }
 
+.aries-settings .aries-log-view {
+    margin: 4px 0 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: var(--monospaceFont, monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    word-break: break-all;
+    opacity: 0.9;
+}
+
 .aries-settings .aries-stats {
     display: flex;
     flex-wrap: wrap;
