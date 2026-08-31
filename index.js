@@ -18,7 +18,7 @@ const BREAKER_COOLDOWN_MS = 600000;
 function defaultSettings() {
     return {
         enabled: true,
-        targetUrl: 'https://opencode.ai/zen/go/v1',
+        targetUrl: '',
         warmupModels: ['deepseek'],
         warmModelsExact: [],
         timeoutMs: 45000,
@@ -93,7 +93,7 @@ async function onSettingsReady(generateData) {
     const settings = getSettings();
     try {
 
-        if (normalizeUrl(generateData?.custom_url) !== normalizeUrl(settings.targetUrl)) {
+        if (!settings.targetUrl || normalizeUrl(generateData?.custom_url) !== normalizeUrl(settings.targetUrl)) {
             stats.skippedUrl++;
             return;
         }
@@ -163,7 +163,7 @@ const TEMPLATE = `
                 <span>启用（关闭 = 一切照旧直连）</span>
             </label>
             <label for="aries_target_url">目标端点 URL（仅当当前接口端点为该地址时才生效）</label>
-            <input id="aries_target_url" class="text_pole" type="text" placeholder="https://..." autocomplete="off" />
+            <input id="aries_target_url" class="text_pole" type="text" placeholder="填入接口地址后生效" autocomplete="off" />
             <label for="aries_models">匹配规则（模型名包含即生效，逗号分隔；自选框留空时才生效）</label>
             <input id="aries_models" class="text_pole" type="text" placeholder="deepseek" autocomplete="off" />
             <label>自选模型（勾选后仅对勾选的模型生效，优先于上方规则）</label>
