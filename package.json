@@ -1,6 +1,6 @@
 {
     "name": "aries",
-    "version": "0.4.8",
+    "version": "0.4.9",
     "description": "Aries - 长对话成本优化扩展",
     "type": "module",
     "license": "MIT"

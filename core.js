@@ -24,19 +24,17 @@ export function messagesKey(messages) {
 
 
 export class WarmupGate {
-    constructor({ ttlMs = 180000, minChars = 2000, cap = 500 } = {}) {
+    constructor({ ttlMs = 180000, minChars = 2000 } = {}) {
         this.ttlMs = ttlMs;
         this.minChars = minChars;
-        this.cap = cap;
-        this.hot = new Map();
+        this.lastKey = null;
+        this.lastAt = 0;
         this.inflight = new Set();
     }
 
     _hotHas(key) {
-        const at = this.hot.get(key);
-        if (at === undefined) return false;
-        if (Date.now() - at > this.ttlMs) { this.hot.delete(key); return false; }
-        return true;
+        if (this.lastKey !== key) return false;
+        return Date.now() - this.lastAt <= this.ttlMs;
     }
 
 
@@ -73,7 +71,7 @@ export class WarmupGate {
 
     markWarmed(messages) {
         if (!Array.isArray(messages)) return;
-        if (this.hot.size >= this.cap) this.hot.delete(this.hot.keys().next().value);
-        this.hot.set(messagesKey(messages), Date.now());
+        this.lastKey = messagesKey(messages);
+        this.lastAt = Date.now();
     }
 }
