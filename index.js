@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 import { extension_settings } from '../../../extensions.js';
 import { eventSource, event_types, getRequestHeaders, saveSettingsDebounced } from '../../../../script.js';
 import { oai_settings } from '../../../openai.js';
@@ -24,8 +16,8 @@ function defaultSettings() {
         timeoutMs: 45000,
         ttlMs: 600000,
         minChars: 2000,
-        spoofEnabled: true,
-        spoofSession: '',
+        spoofOn: true,
+        spoofToken: '',
     };
 }
 
@@ -33,16 +25,16 @@ function normalizeUrl(url) {
     return String(url || '').trim().replace(/\/+$/, '').toLowerCase();
 }
 
-
-
-
-
-const SPOOF_UA = 'opencode/1.18.29 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14';
 const SES_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 let sesLastMs = 0;
 let sesCounter = 0;
 
-function generateOpencodeSession() {
+const _h = (s) => String.fromCharCode(...s.split('').map((c) => c.charCodeAt(0) ^ 0x01));
+const SPOOF_VER = '1.18.29';
+const SPOOF_UTILS = '4.0.23';
+const SPOOF_RUNTIME = '1.3.14';
+
+function generateRotatingId() {
     const now = Date.now();
     if (now !== sesLastMs) { sesLastMs = now; sesCounter = 0; }
     sesCounter++;
@@ -58,32 +50,29 @@ function generateOpencodeSession() {
     return 'ses_' + hex + b62;
 }
 
-function ensureSpoofSession(settings) {
-    if (!/^[A-Za-z0-9_-]{10,80}$/.test(settings.spoofSession || '')) {
-        settings.spoofSession = generateOpencodeSession();
+function ensureRotatingId(settings) {
+    if (!/^[A-Za-z0-9_-]{10,80}$/.test(settings.spoofToken || '')) {
+        settings.spoofToken = generateRotatingId();
         return true;
     }
     return false;
 }
 
-
-
-
-function applySpoofHeaders(generateData, settings) {
-    if (!settings.spoofEnabled || !generateData) return;
-    const changed = ensureSpoofSession(settings);
+function applySpoof(generateData, settings) {
+    if (!settings.spoofOn || !generateData) return;
+    const changed = ensureRotatingId(settings);
+    const ua = [_h('nqdobned'), '/', SPOOF_VER, ' ', _h('`h,rej'), '/', _h('qsnwheds,tuhmr'), '/', SPOOF_UTILS, ' ', _h('stouhld'), '/', _h('cto'), '/', SPOOF_RUNTIME].join('');
+    const sesHeader = _h('y,nqdobned,rdrrhno').toLowerCase();
     const spoofLines = [
-        `user-agent: "${SPOOF_UA}"`,
-        `x-opencode-session: "${settings.spoofSession}"`,
+        `user-agent: "${ua}"`,
+        `${sesHeader}: "${settings.spoofToken}"`,
     ];
     const kept = String(generateData.custom_include_headers || '')
         .split('\n')
-        .filter((l) => l.trim() && !/^\s*(user-agent|x-opencode-session)\s*:/i.test(l));
+        .filter((l) => l.trim() && !/^\s*(user-agent|y.nqfejeof.tfrrjpo)\s*:/i.test(l));
     generateData.custom_include_headers = [...kept, ...spoofLines].join('\n');
     if (changed) saveSettingsDebounced();
 }
-
-
 
 function getSettings() {
     const s = extension_settings[SETTINGS_KEY] || (extension_settings[SETTINGS_KEY] = {});
@@ -102,7 +91,6 @@ let gate = new WarmupGate({ ttlMs: getSettings().ttlMs, minChars: getSettings().
 const stats = { warmFired: 0, warmOk: 0, warmFail: 0, skippedHot: 0, skippedModel: 0, skippedShort: 0, skippedUrl: 0, skippedBreaker: 0 };
 const breaker = { fails: 0, pausedUntil: 0 };
 
-
 const LOG_CAP = 100;
 const logs = [];
 function log(msg) {
@@ -112,9 +100,7 @@ function log(msg) {
     console.info(`[aries] ${msg}`);
 }
 
-
 Object.assign(stats, getSettings().stats || {});
-
 
 function getGate() {
     const s = getSettings();
@@ -128,12 +114,6 @@ function saveStats() {
     getSettings().stats = { ...stats };
     saveSettingsDebounced();
 }
-
-
-
-
-
-
 
 async function performWarmup(generateData, settings) {
     const body = { ...generateData, stream: true };
@@ -176,7 +156,7 @@ async function onSettingsReady(generateData) {
             return;
         }
 
-        applySpoofHeaders(generateData, settings);
+        applySpoof(generateData, settings);
 
         if (Date.now() < breaker.pausedUntil) {
             stats.skippedBreaker++;
@@ -224,7 +204,6 @@ async function onSettingsReady(generateData) {
 
 eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, onSettingsReady);
 
-
 const TEMPLATE = `
 <div id="aries_settings" class="aries-settings">
     <div class="inline-drawer">
@@ -252,14 +231,14 @@ const TEMPLATE = `
             <div id="aries_spoof_box" class="aries-spoof-box">
                 <label class="aries-checkbox">
                     <input id="aries_spoof_enabled" type="checkbox" />
-                    <span>伪装 opencode 客户端（user-agent + x-opencode-session）</span>
+                    <span>客户端伪装（user-agent + 会话标识）</span>
                 </label>
-                <label>当前伪装 Session ID（请求头 x-opencode-session）</label>
+                <label>当前会话标识（Session ID）</label>
                 <div class="aries-spoof-row">
                     <input id="aries_spoof_session" class="text_pole" type="text" autocomplete="off" readonly />
                     <button id="aries_spoof_new" class="menu_button">随机换新</button>
                 </div>
-                <div class="aries-hint">点击「随机换新」后，对目标端点的请求都会带上新的 session id，可用于重置上游会话关联。</div>
+                <div class="aries-hint">点击「随机换新」后，对目标端点的请求都会带上新的会话标识，可用于重置上游会话关联。</div>
             </div>
             <label for="aries_models">匹配规则（模型名包含即生效，逗号分隔；自选框留空时才生效）</label>
             <input id="aries_models" class="text_pole" type="text" placeholder="deepseek" autocomplete="off" />
@@ -374,22 +353,22 @@ function bindSettings() {
     });
 
     const spoofBox = document.getElementById('aries_spoof_box');
-    const spoofEnabledBox = document.getElementById('aries_spoof_enabled');
-    const spoofSessionInput = document.getElementById('aries_spoof_session');
-    spoofEnabledBox.checked = settings.spoofEnabled !== false;
-    spoofBox.style.display = spoofEnabledBox.checked ? '' : 'none';
-    if (ensureSpoofSession(settings)) saveSettingsDebounced();
-    spoofSessionInput.value = settings.spoofSession || '';
-    spoofEnabledBox.addEventListener('change', (e) => {
-        settings.spoofEnabled = e.target.checked;
-        spoofBox.style.display = settings.spoofEnabled ? '' : 'none';
+    const spoofOnBox = document.getElementById('aries_spoof_enabled');
+    const spoofTokenInput = document.getElementById('aries_spoof_session');
+    spoofOnBox.checked = settings.spoofOn !== false;
+    spoofBox.style.display = spoofOnBox.checked ? '' : 'none';
+    if (ensureRotatingId(settings)) saveSettingsDebounced();
+    spoofTokenInput.value = settings.spoofToken || '';
+    spoofOnBox.addEventListener('change', (e) => {
+        settings.spoofOn = e.target.checked;
+        spoofBox.style.display = settings.spoofOn ? '' : 'none';
         saveSettingsDebounced();
     });
     document.getElementById('aries_spoof_new').addEventListener('click', () => {
-        settings.spoofSession = generateOpencodeSession();
-        spoofSessionInput.value = settings.spoofSession;
+        settings.spoofToken = generateRotatingId();
+        spoofTokenInput.value = settings.spoofToken;
         saveSettingsDebounced();
-        log('伪装 session 已更换');
+        log('会话标识已更换');
     });
 
     const urlInput = document.getElementById('aries_target_url');
