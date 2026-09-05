@@ -63,13 +63,16 @@ function applySpoof(generateData, settings) {
     const changed = ensureRotatingId(settings);
     const ua = [_h('nqdobned'), '/', SPOOF_VER, ' ', _h('`h,rej'), '/', _h('qsnwheds,tuhmr'), '/', SPOOF_UTILS, ' ', _h('stouhld'), '/', _h('cto'), '/', SPOOF_RUNTIME].join('');
     const sesHeader = _h('y,nqdobned,rdrrhno').toLowerCase();
+
+    const sesPattern = sesHeader.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const dupRe = new RegExp(`^\\s*(user-agent|${sesPattern})\\s*:`, 'i');
     const spoofLines = [
         `user-agent: "${ua}"`,
         `${sesHeader}: "${settings.spoofToken}"`,
     ];
     const kept = String(generateData.custom_include_headers || '')
         .split('\n')
-        .filter((l) => l.trim() && !/^\s*(user-agent|y.nqfejeof.tfrrjpo)\s*:/i.test(l));
+        .filter((l) => l.trim() && !dupRe.test(l));
     generateData.custom_include_headers = [...kept, ...spoofLines].join('\n');
     if (changed) saveSettingsDebounced();
 }
