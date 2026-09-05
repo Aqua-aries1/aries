@@ -24,11 +24,63 @@ function defaultSettings() {
         timeoutMs: 45000,
         ttlMs: 600000,
         minChars: 2000,
+        spoofEnabled: true,
+        spoofSession: '',
     };
 }
 
 function normalizeUrl(url) {
     return String(url || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+
+
+
+
+const SPOOF_UA = 'opencode/1.18.29 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14';
+const SES_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+let sesLastMs = 0;
+let sesCounter = 0;
+
+function generateOpencodeSession() {
+    const now = Date.now();
+    if (now !== sesLastMs) { sesLastMs = now; sesCounter = 0; }
+    sesCounter++;
+    const n = ~(BigInt(now) * 0x1000n + BigInt(sesCounter));
+    let hex = '';
+    for (let i = 5; i >= 0; i--) {
+        hex += ((n >> BigInt(8 * i)) & 0xffn).toString(16).padStart(2, '0');
+    }
+    const rand = new Uint8Array(14);
+    crypto.getRandomValues(rand);
+    let b62 = '';
+    for (const v of rand) b62 += SES_ALPHABET[v % 62];
+    return 'ses_' + hex + b62;
+}
+
+function ensureSpoofSession(settings) {
+    if (!/^[A-Za-z0-9_-]{10,80}$/.test(settings.spoofSession || '')) {
+        settings.spoofSession = generateOpencodeSession();
+        return true;
+    }
+    return false;
+}
+
+
+
+
+function applySpoofHeaders(generateData, settings) {
+    if (!settings.spoofEnabled || !generateData) return;
+    const changed = ensureSpoofSession(settings);
+    const spoofLines = [
+        `user-agent: "${SPOOF_UA}"`,
+        `x-opencode-session: "${settings.spoofSession}"`,
+    ];
+    const kept = String(generateData.custom_include_headers || '')
+        .split('\n')
+        .filter((l) => l.trim() && !/^\s*(user-agent|x-opencode-session)\s*:/i.test(l));
+    generateData.custom_include_headers = [...kept, ...spoofLines].join('\n');
+    if (changed) saveSettingsDebounced();
 }
 
 
@@ -124,6 +176,8 @@ async function onSettingsReady(generateData) {
             return;
         }
 
+        applySpoofHeaders(generateData, settings);
+
         if (Date.now() < breaker.pausedUntil) {
             stats.skippedBreaker++;
             log('直连: 熔断中');
@@ -195,6 +249,18 @@ const TEMPLATE = `
             <label for="aries_target_url">目标端点 URL（仅当当前接口端点为该地址时才生效）</label>
             <input id="aries_target_url" class="text_pole" type="text" placeholder="填入接口地址后生效" autocomplete="off" />
             <div id="aries_url_hint" class="aries-hint" style="display:none">未填端点 URL —— 扩展不生效，请求照常直连</div>
+            <div id="aries_spoof_box" class="aries-spoof-box">
+                <label class="aries-checkbox">
+                    <input id="aries_spoof_enabled" type="checkbox" />
+                    <span>伪装 opencode 客户端（user-agent + x-opencode-session）</span>
+                </label>
+                <label>当前伪装 Session ID（请求头 x-opencode-session）</label>
+                <div class="aries-spoof-row">
+                    <input id="aries_spoof_session" class="text_pole" type="text" autocomplete="off" readonly />
+                    <button id="aries_spoof_new" class="menu_button">随机换新</button>
+                </div>
+                <div class="aries-hint">点击「随机换新」后，对目标端点的请求都会带上新的 session id，可用于重置上游会话关联。</div>
+            </div>
             <label for="aries_models">匹配规则（模型名包含即生效，逗号分隔；自选框留空时才生效）</label>
             <input id="aries_models" class="text_pole" type="text" placeholder="deepseek" autocomplete="off" />
             <label>自选模型（勾选后仅对勾选的模型生效，优先于上方规则）</label>
@@ -305,6 +371,25 @@ function bindSettings() {
     document.getElementById('aries_enabled').addEventListener('change', (e) => {
         settings.enabled = e.target.checked;
         saveSettingsDebounced();
+    });
+
+    const spoofBox = document.getElementById('aries_spoof_box');
+    const spoofEnabledBox = document.getElementById('aries_spoof_enabled');
+    const spoofSessionInput = document.getElementById('aries_spoof_session');
+    spoofEnabledBox.checked = settings.spoofEnabled !== false;
+    spoofBox.style.display = spoofEnabledBox.checked ? '' : 'none';
+    if (ensureSpoofSession(settings)) saveSettingsDebounced();
+    spoofSessionInput.value = settings.spoofSession || '';
+    spoofEnabledBox.addEventListener('change', (e) => {
+        settings.spoofEnabled = e.target.checked;
+        spoofBox.style.display = settings.spoofEnabled ? '' : 'none';
+        saveSettingsDebounced();
+    });
+    document.getElementById('aries_spoof_new').addEventListener('click', () => {
+        settings.spoofSession = generateOpencodeSession();
+        spoofSessionInput.value = settings.spoofSession;
+        saveSettingsDebounced();
+        log('伪装 session 已更换');
     });
 
     const urlInput = document.getElementById('aries_target_url');

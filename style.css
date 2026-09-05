@@ -71,3 +71,27 @@
     opacity: 0.9;
 }
 
+.aries-settings .aries-spoof-box {
+    margin: 10px 0 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 8px;
+}
+
+.aries-settings .aries-spoof-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.aries-settings .aries-spoof-row .text_pole {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--monospaceFont, monospace);
+    font-size: 0.85em;
+}
+
+.aries-settings .aries-spoof-row .menu_button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
