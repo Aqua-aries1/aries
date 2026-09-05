@@ -359,12 +359,18 @@ function bindSettings() {
     const spoofOnBox = document.getElementById('aries_spoof_enabled');
     const spoofTokenInput = document.getElementById('aries_spoof_session');
     spoofOnBox.checked = settings.spoofOn !== false;
-    spoofBox.style.display = spoofOnBox.checked ? '' : 'none';
+
+    const renderSpoofState = () => {
+        spoofBox.classList.toggle('aries-spoof-off', !spoofOnBox.checked);
+        spoofTokenInput.disabled = !spoofOnBox.checked;
+        document.getElementById('aries_spoof_new').disabled = !spoofOnBox.checked;
+    };
     if (ensureRotatingId(settings)) saveSettingsDebounced();
     spoofTokenInput.value = settings.spoofToken || '';
+    renderSpoofState();
     spoofOnBox.addEventListener('change', (e) => {
         settings.spoofOn = e.target.checked;
-        spoofBox.style.display = settings.spoofOn ? '' : 'none';
+        renderSpoofState();
         saveSettingsDebounced();
     });
     document.getElementById('aries_spoof_new').addEventListener('click', () => {

@@ -95,3 +95,11 @@
     flex: 0 0 auto;
     white-space: nowrap;
 }
+
+.aries-settings .aries-spoof-box.aries-spoof-off {
+    opacity: 0.45;
+}
+
+.aries-settings .aries-spoof-box.aries-spoof-off .text_pole {
+    opacity: 0.6;
+}
