@@ -11,7 +11,7 @@ function defaultSettings() {
     return {
         enabled: true,
         targetUrl: '',
-        warmupModels: ['deepseek'],
+        warmupModels: [],
         warmModelsExact: [],
         timeoutMs: 45000,
         ttlMs: 600000,
@@ -244,7 +244,7 @@ const TEMPLATE = `
                 <div class="aries-hint">点击「随机换新」后，对目标端点的请求都会带上新的会话标识，可用于重置上游会话关联。</div>
             </div>
             <label for="aries_models">匹配规则（模型名包含即生效，逗号分隔；自选框留空时才生效）</label>
-            <input id="aries_models" class="text_pole" type="text" placeholder="deepseek" autocomplete="off" />
+            <input id="aries_models" class="text_pole" type="text" placeholder="模型名关键字" autocomplete="off" />
             <label>自选模型（勾选后仅对勾选的模型生效，优先于上方规则）</label>
             <div id="aries_model_checks" class="aries-model-checks"></div>
             <div class="aries-buttons">
