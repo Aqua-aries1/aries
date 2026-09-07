@@ -147,6 +147,8 @@ async function performWarmup(generateData, settings) {
 }
 
 async function onSettingsReady(generateData) {
+
+    eventSource.makeLast(event_types.CHAT_COMPLETION_SETTINGS_READY, onSettingsReady);
     const settings = getSettings();
     try {
 
@@ -171,7 +173,7 @@ async function onSettingsReady(generateData) {
 
         if (Date.now() - lastStopAt < 500) {
             stats.skippedAborted++;
-            log('跳过: 生成已被中止(如提示词查看器刷新)');
+            log('跳过: 生成已被中止');
             return;
         }
         const model = String(generateData?.model || '');
