@@ -91,8 +91,10 @@ function getSettings() {
 }
 
 let gate = new WarmupGate({ ttlMs: getSettings().ttlMs, minChars: getSettings().minChars });
-const stats = { warmFired: 0, warmOk: 0, warmFail: 0, skippedHot: 0, skippedModel: 0, skippedShort: 0, skippedUrl: 0, skippedBreaker: 0 };
+const stats = { warmFired: 0, warmOk: 0, warmFail: 0, skippedHot: 0, skippedModel: 0, skippedShort: 0, skippedUrl: 0, skippedBreaker: 0, skippedAborted: 0 };
 const breaker = { fails: 0, pausedUntil: 0 };
+
+let lastStopAt = 0;
 
 const LOG_CAP = 100;
 const logs = [];
@@ -166,6 +168,12 @@ async function onSettingsReady(generateData) {
             log('直连: 熔断中');
             return;
         }
+
+        if (Date.now() - lastStopAt < 500) {
+            stats.skippedAborted++;
+            log('跳过: 生成已被中止(如提示词查看器刷新)');
+            return;
+        }
         const model = String(generateData?.model || '');
         const messages = Array.isArray(generateData?.messages) ? generateData.messages : null;
         const g = getGate();
@@ -205,7 +213,8 @@ async function onSettingsReady(generateData) {
     }
 }
 
-eventSource.on(event_types.CHAT_COMPLETION_SETTINGS_READY, onSettingsReady);
+eventSource.makeLast(event_types.CHAT_COMPLETION_SETTINGS_READY, onSettingsReady);
+eventSource.on(event_types.GENERATION_STOPPED, () => { lastStopAt = Date.now(); });
 
 const TEMPLATE = `
 <div id="aries_settings" class="aries-settings">
@@ -223,6 +232,7 @@ const TEMPLATE = `
                 <span>短跳过 <b id="aries_s_short">0</b></span>
                 <span>端点外 <b id="aries_s_url">0</b></span>
                 <span>熔断跳过 <b id="aries_s_breaker">0</b></span>
+                <span>中止跳过 <b id="aries_s_aborted">0</b></span>
             </div>
             <label class="aries-checkbox">
                 <input id="aries_enabled" type="checkbox" />
@@ -268,6 +278,7 @@ function refreshStats() {
     el('aries_s_hot').textContent = stats.skippedHot;
     el('aries_s_url').textContent = stats.skippedUrl;
     el('aries_s_breaker').textContent = stats.skippedBreaker;
+    el('aries_s_aborted').textContent = stats.skippedAborted;
     el('aries_s_short').textContent = stats.skippedShort;
 
     updateUrlHint();
